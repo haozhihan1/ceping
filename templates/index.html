@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>员工能力测评系统</title>
+    <!-- 用户端不再需要图表库 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .page {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        .page-title {
+            text-align: center;
+            color: #4a5568;
+            margin-bottom: 30px;
+            font-size: 2rem;
+            font-weight: 600;
+        }
+
+        /* 登录页面样式 */
+        .login-form {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #4a5568;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            width: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* 答题页面样式 */
+        .question-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .question-card {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+            border-left: 5px solid #667eea;
+        }
+
+        .question-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+
+        .question-number {
+            color: #667eea;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .options-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .option-item {
+            display: flex;
+            align-items: center;
+            padding: 15px 20px;
+            border: 3px solid #e2e8f0;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .option-item:hover {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+        }
+
+        .option-item.selected {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #ebf8ff 0%, #bee3f8 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.25);
+        }
+
+        .option-item.selected::before {
+            content: '✓';
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #667eea;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        .option-item input[type="radio"] {
+            margin-right: 12px;
+            transform: scale(1.2);
+        }
+
+        .progress-container {
+            margin: 20px 0;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        .progress-text {
+            text-align: center;
+            margin-top: 10px;
+            color: #4a5568;
+            font-weight: 500;
+        }
+
+        .timer-container {
+            text-align: center;
+            margin: 15px 0;
+        }
+
+        .timer {
+            font-size: 20px;
+            font-weight: 600;
+            color: #e53e3e;
+            margin-bottom: 8px;
+        }
+
+        .timer-progress-bar {
+            width: 200px;
+            height: 6px;
+            background: #e2e8f0;
+            border-radius: 3px;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+
+        .timer-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #e53e3e, #f56565);
+            width: 100%;
+            transition: width 0.1s linear;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .btn-secondary {
+            background: #718096;
+        }
+
+        /* 用户端不再需要图表相关样式 */
+
+        /* 用户端不再需要报告相关样式 */
+
+        /* 加载动画 */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #667eea;
+            font-size: 18px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* 完成页面样式 */
+        .completion-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 60vh;
+        }
+
+        .completion-content {
+            text-align: center;
+            max-width: 500px;
+        }
+
+        .completion-icon {
+            font-size: 80px;
+            color: #38a169;
+            margin-bottom: 20px;
+        }
+
+        .completion-title {
+            color: #2d3748;
+            margin-bottom: 20px;
+            font-size: 2rem;
+        }
+
+        .completion-message {
+            color: #4a5568;
+            margin-bottom: 15px;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .page {
+                padding: 20px;
+            }
+            
+            .question-card {
+                padding: 20px;
+            }
+            
+            .button-group {
+                flex-direction: column;
+            }
+            
+            .chart-container {
+                height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 登录页面 -->
+        <div id="login-page" class="page active">
+            <h1 class="page-title">员工能力测评系统</h1>
+            <div class="login-form">
+                <div class="form-group">
+                    <label for="company-name">公司名称</label>
+                    <input type="text" id="company-name" placeholder="请输入公司名称" required>
+                </div>
+                <div class="form-group">
+                    <label for="employee-name">员工姓名</label>
+                    <input type="text" id="employee-name" placeholder="请输入员工姓名" required>
+                </div>
+                <div class="form-group">
+                    <label for="employee-id">员工工号</label>
+                    <input type="text" id="employee-id" placeholder="请输入员工工号" required>
+                </div>
+                <button class="btn" onclick="login()">开始测试</button>
+            </div>
+        </div>
+
+        <!-- 答题页面 -->
+        <div id="question-page" class="page">
+            <h1 class="page-title">能力测评</h1>
+            <div class="question-container">
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill"></div>
+                    </div>
+                    <div class="progress-text" id="progress-text">0 / 0</div>
+                </div>
+                <div class="timer-container">
+                    <div class="timer" id="timer">15</div>
+                    <div class="timer-progress-bar">
+                        <div class="timer-progress-fill" id="timer-progress-fill"></div>
+                    </div>
+                </div>
+                <div id="question-content"></div>
+            </div>
+        </div>
+
+        <!-- 完成页面 -->
+        <div id="completion-page" class="page">
+            <div class="completion-container">
+                <div class="completion-content">
+                    <div class="completion-icon">✓</div>
+                    <h1 class="completion-title">测评完成</h1>
+                    <p class="completion-message">感谢您完成本次员工能力测评！</p>
+                    <p class="completion-message">您的测评结果已保存，管理员将为您生成详细报告。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 用户端不再需要报告页面 -->
+    </div>
+
+    <script>
+        let questions = [];
+        let currentQuestion = 0;
+        let answers = [];
+        let timer = null;
+        let timeLeft = 15;
+        let employeeId = '';
+        let scores = {};
+
+        // 页面切换函数
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(page => {
+                page.classList.remove('active');
+            });
+            document.getElementById(pageId).classList.add('active');
+        }
+
+        // 登录函数
+        async function login() {
+            const companyName = document.getElementById('company-name').value.trim();
+            const employeeName = document.getElementById('employee-name').value.trim();
+            const employeeIdInput = document.getElementById('employee-id').value.trim();
+
+            if (!companyName || !employeeName || !employeeIdInput) {
+                alert('请填写完整信息');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        公司名称: companyName,
+                        员工名称: employeeName,
+                        员工工号: employeeIdInput
+                    })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    employeeId = employeeIdInput;
+                    showPage('question-page');
+                    loadQuestions();
+                } else {
+                    alert(data.msg || '登录失败');
+                }
+            } catch (error) {
+                console.error('登录错误:', error);
+                alert('登录失败，请重试');
+            }
+        }
+
+        // 加载题目
+        async function loadQuestions() {
+            try {
+                const response = await fetch('/api/questions');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    questions = data;
+                    answers = new Array(questions.length).fill(null);
+                    showQuestion();
+                } else {
+                    alert('加载题目失败');
+                }
+            } catch (error) {
+                console.error('加载题目错误:', error);
+                alert('加载题目失败，请重试');
+            }
+        }
+
+        // 显示题目
+        function showQuestion() {
+            if (currentQuestion >= questions.length) {
+                submitAnswers();
+                return;
+            }
+
+            const question = questions[currentQuestion];
+            const questionContent = document.getElementById('question-content');
+            
+            // 更新进度
+            const progress = ((currentQuestion + 1) / questions.length) * 100;
+            document.getElementById('progress-fill').style.width = progress + '%';
+            document.getElementById('progress-text').textContent = `${currentQuestion + 1} / ${questions.length}`;
+
+            // 构建题目HTML
+            let optionsHtml = '';
+            if (question.question_type === '评分') {
+                const options = question.options;
+                options.forEach((option, index) => {
+                    const isSelected = answers[currentQuestion] === index + 1;
+                    optionsHtml += `
+                        <div class="option-item ${isSelected ? 'selected' : ''}" onclick="selectOption(${index + 1})">
+                            <span>${option}</span>
+                        </div>
+                    `;
+                });
+            } else if (question.question_type === '单选') {
+                const options = question.options;
+                options.forEach((option, index) => {
+                    const isSelected = answers[currentQuestion] === String.fromCharCode(65 + index);
+                    optionsHtml += `
+                        <div class="option-item ${isSelected ? 'selected' : ''}" onclick="selectOption('${String.fromCharCode(65 + index)}')">
+                            <span>${option}</span>
+                        </div>
+                    `;
+                });
+            }
+
+            questionContent.innerHTML = `
+                <div class="question-card">
+                    <div class="question-number">第 ${currentQuestion + 1} 题</div>
+                    <div class="question-title">${question.content}</div>
+                    <div class="options-container">
+                        ${optionsHtml}
+                    </div>
+                    <div class="button-group">
+                        <button class="btn btn-secondary" onclick="nextQuestion()" ${answers[currentQuestion] === null ? 'disabled' : ''}>
+                            ${currentQuestion === questions.length - 1 ? '完成' : '下一题'}
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            // 启动计时器
+            startTimer();
+        }
+
+        // 选择选项
+        function selectOption(value) {
+            answers[currentQuestion] = value;
+            
+            // 更新选中状态
+            document.querySelectorAll('.option-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            event.currentTarget.classList.add('selected');
+            
+            // 启用下一题按钮
+            const nextBtn = document.querySelector('.btn-secondary');
+            if (nextBtn) {
+                nextBtn.disabled = false;
+            }
+        }
+
+        // 启动计时器
+        function startTimer() {
+            timeLeft = 15;
+            clearInterval(timer);
+            updateTimer();
+            
+            timer = setInterval(() => {
+                timeLeft--;
+                updateTimer();
+                
+                if (timeLeft <= 0) {
+                    clearInterval(timer);
+                    // 自动保存当前答案并跳转到下一题
+                    autoSaveAndNext();
+                }
+            }, 1000);
+        }
+
+        // 更新计时器显示和进度条
+        function updateTimer() {
+            document.getElementById('timer').textContent = timeLeft;
+            const progressPercent = (timeLeft / 15) * 100;
+            document.getElementById('timer-progress-fill').style.width = progressPercent + '%';
+        }
+
+        // 自动保存当前答案并跳转到下一题
+        function autoSaveAndNext() {
+            // 如果没有选择答案，随机选择一个
+            if (answers[currentQuestion] === null) {
+                const question = questions[currentQuestion];
+                if (question.question_type === '评分') {
+                    answers[currentQuestion] = Math.floor(Math.random() * 5) + 1;
+                } else if (question.question_type === '单选') {
+                    const options = question.options;
+                    const randomIndex = Math.floor(Math.random() * options.length);
+                    answers[currentQuestion] = String.fromCharCode(65 + randomIndex);
+                }
+            }
+            
+            // 跳转到下一题
+            nextQuestion();
+        }
+
+        // 下一题
+        function nextQuestion() {
+            // 检查是否已选择答案
+            if (answers[currentQuestion] === null) {
+                alert('请选择答案');
+                return;
+            }
+            
+            clearInterval(timer);
+            currentQuestion++;
+            
+            if (currentQuestion >= questions.length) {
+                // 所有题目完成，提交答案
+                submitAnswers();
+            } else {
+                // 显示下一题
+                showQuestion();
+            }
+        }
+
+        // 用户端不再需要一键完成功能
+
+        // 提交答案
+        async function submitAnswers() {
+            clearInterval(timer);
+            
+            const payload = questions.map((question, index) => ({
+                id: question.id,
+                answer: answers[index]
+            }));
+
+            try {
+                const response = await fetch('/api/submit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        answers: payload,
+                        员工工号: employeeId
+                    })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    // 测试完成后直接显示完成页面，不显示结果
+                    showCompletion();
+                } else {
+                    alert(data.msg || '提交失败');
+                }
+            } catch (error) {
+                console.error('提交答案错误:', error);
+                alert('提交失败，请重试');
+            }
+        }
+
+        // 显示完成页面
+        function showCompletion() {
+            showPage('completion-page');
+        }
+
+        // 用户端不再需要重新开始功能
+
+        // 用户端不再需要图表渲染和报告生成功能
+    </script>
+</body>
+</html> 

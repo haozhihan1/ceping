@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理端 - 员工测评管理</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", Arial, sans-serif; background:#f5f6fa; margin:0; }
+        .container { max-width: 1100px; margin: 0 auto; padding: 20px; }
+        h1 { color:#2d3748; }
+        .card { background:#fff; border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,.06); padding:20px; margin-bottom:20px; }
+        .btn { padding:8px 14px; border:none; border-radius:6px; cursor:pointer; color:#fff; background:#667eea; }
+        .btn.gray { background:#718096; }
+        .btn.green { background:#38a169; }
+        .btn.red { background:#e53e3e; }
+        table { width:100%; border-collapse:collapse; }
+        th, td { border-bottom:1px solid #edf2f7; padding:10px; text-align:left; font-size:14px; }
+        th { background:#f7fafc; }
+        .login-row { display:flex; gap:10px; }
+        input { padding:10px; border:1px solid #e2e8f0; border-radius:6px; }
+        #reportBox { white-space:pre-wrap; background:#fff; padding:16px; border-radius:8px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>管理员管理端</h1>
+
+    <div class="card" id="loginCard">
+        <div class="login-row">
+            <input id="adminUser" placeholder="管理员账号" />
+            <input id="adminPass" placeholder="管理员密码" type="password" />
+            <button class="btn" onclick="adminLogin()">登录</button>
+        </div>
+        <div id="loginMsg" style="margin-top:8px;color:#e53e3e;"></div>
+    </div>
+
+    <div class="card" id="opCard" style="display:none;">
+        <div style="display:flex; gap:10px; margin-bottom:10px;">
+            <button class="btn green" onclick="exportExcel()">导出Excel</button>
+            <button class="btn red" onclick="clearAll()">清空数据</button>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>工号</th><th>姓名</th><th>管理能力</th><th>职业兴趣</th><th>通用能力</th><th>职业性格</th><th>行为模式</th><th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="empTable"></tbody>
+        </table>
+    </div>
+
+    <div class="card" id="reportCard" style="display:none;">
+        <div style="display:flex; gap:10px; margin-bottom:10px;">
+            <button class="btn" onclick="downloadPDF()">下载报告</button>
+            <button class="btn gray" onclick="closeReport()">关闭</button>
+        </div>
+        <div id="reportBox"></div>
+    </div>
+</div>
+
+<script>
+let currentEmpNo = '';
+let currentReport = '';
+
+async function adminLogin(){
+    const username = document.getElementById('adminUser').value.trim();
+    const password = document.getElementById('adminPass').value.trim();
+    
+    console.log('尝试登录:', {username, password});
+    
+    try {
+        const res = await fetch('/api/admin/login', {
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'}, 
+            body: JSON.stringify({username, password})
+        });
+        
+        console.log('响应状态:', res.status);
+        const data = await res.json();
+        console.log('响应数据:', data);
+        
+        if(res.ok){
+            document.getElementById('loginCard').style.display='none';
+            document.getElementById('opCard').style.display='block';
+            loadEmployees();
+        }else{
+            document.getElementById('loginMsg').innerText = data.msg || '登录失败';
+        }
+    } catch (error) {
+        console.error('登录错误:', error);
+        document.getElementById('loginMsg').innerText = '网络错误，请重试';
+    }
+}
+
+async function loadEmployees(){
+    const res = await fetch('/api/admin/employees');
+    const list = await res.json();
+    const tbody = document.getElementById('empTable');
+    tbody.innerHTML = '';
+    list.forEach(row=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${row['工号']||''}</td><td>${row['姓名']||''}</td><td>${row['管理能力']||0}</td><td>${row['职业兴趣分数']||0}</td><td>${row['通用能力']||0}</td><td>${row['宜人性']||0}</td><td>${row['行为模式分数']||0}</td><td><button class='btn' onclick="genReport('${row['工号']}')">分析</button></td>`;
+        tbody.appendChild(tr);
+    });
+}
+
+async function genReport(empNo){
+    currentEmpNo = empNo;
+    
+    // 显示分析中的提醒
+    alert('正在分析中，请耐心等待');
+    
+    const res = await fetch('/api/admin/generate-report', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({员工工号: empNo})});
+    const data = await res.json();
+    if(res.ok && data.content){
+        currentReport = data.content;
+        document.getElementById('reportBox').innerText = data.content;
+        document.getElementById('reportCard').style.display='block';
+        window.scrollTo(0, document.body.scrollHeight);
+    }else{
+        alert('生成失败：'+(data.msg||''));
+    }
+}
+
+async function exportExcel(){
+    window.location.href = '/api/admin/export';
+}
+
+async function clearAll(){
+    if(!confirm('确认清空所有员工数据？')) return;
+    const res = await fetch('/api/admin/clear', {method:'POST'});
+    const data = await res.json();
+    if(res.ok){ alert('已清空'); loadEmployees(); }
+    else { alert('清空失败：'+(data.msg||'')); }
+}
+
+function closeReport(){
+    document.getElementById('reportCard').style.display='none';
+}
+
+async function downloadPDF(){
+    if(!window.html2canvas || !window.jspdf){ alert('依赖未加载'); return; }
+    const box = document.getElementById('reportBox');
+    const canvas = await html2canvas(box, {scale:2, useCORS:true, backgroundColor:'#fff'});
+    const imgData = canvas.toDataURL('image/jpeg', 1.0);
+    const pdf = new window.jspdf.jsPDF('p','pt','a4');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pageWidth - 40;
+    const imgHeight = canvas.height * imgWidth / canvas.width;
+    let heightLeft = imgHeight;
+    let position = 20;
+    pdf.addImage(imgData, 'JPEG', 20, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+    while(heightLeft > 0){
+        pdf.addPage();
+        position = 20 - (imgHeight - heightLeft);
+        pdf.addImage(imgData, 'JPEG', 20, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+    }
+    pdf.save(`员工报告_${currentEmpNo}_${new Date().toISOString().split('T')[0]}.pdf`);
+}
+</script>
+</body>
+</html> 

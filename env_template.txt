@@ -1,0 +1,27 @@
+# 生产环境配置模板
+# 复制此文件为 .env 并填写实际值
+
+# Flask应用配置
+SECRET_KEY=your-production-secret-key-change-this-to-random-string
+PORT=8000
+HOST=0.0.0.0
+WORKERS=4
+
+# DeepSeek API配置
+DEEPSEEK_API_KEY=your-deepseek-api-key-here
+
+# 管理员账号配置
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=your-secure-admin-password
+
+# 数据库配置
+DATABASE_PATH=/home/www/flask_project/new_questions.db
+
+# 日志配置
+LOG_LEVEL=INFO
+LOG_FILE=/var/log/flask_app.log
+
+# 腾讯云配置（可选）
+TENCENT_CLOUD_REGION=ap-guangzhou
+TENCENT_CLOUD_SECRET_ID=your-secret-id
+TENCENT_CLOUD_SECRET_KEY=your-secret-key

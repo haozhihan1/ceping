@@ -1,0 +1,21 @@
+# Web框架
+Flask==2.3.3
+Flask-CORS==4.0.0
+Werkzeug==2.3.7
+
+# HTTP请求
+requests==2.31.0
+
+# 数据处理
+pandas==2.1.4
+openpyxl==3.1.2
+
+# 生产环境依赖
+gunicorn==21.2.0
+python-dotenv==1.0.0
+
+# 可选：性能监控
+psutil==5.9.0
+
+# 可选：日志处理
+python-json-logger==2.0.7 
