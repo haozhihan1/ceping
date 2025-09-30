@@ -19,9 +19,9 @@ class Config:
     DEBUG = False
     TESTING = False
     SECRET_KEY = os.environ.get('SECRET_KEY', 'your-production-secret-key-change-this')
-    DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', 'your-api-key-here')
+    DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', 'sk-d7f98fb5f40d4e669906aa439bfa1e74')
     ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')
-    ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'change-this-password')
+    ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')
 
 # 设置配置
 app.config.from_object(Config)
@@ -51,26 +51,25 @@ def init_db():
         正确答案 TEXT
     )''')
     
-    # 创建人员表
+    # 创建人员表 - 更新为新结构，移除职业兴趣
     c.execute('''CREATE TABLE IF NOT EXISTS employees (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         姓名 TEXT NOT NULL,
         工号 TEXT NOT NULL,
         公司名称 TEXT,
-        管理能力 INTEGER DEFAULT 0,
-        战略思维 INTEGER DEFAULT 0,
-        团队领导 INTEGER DEFAULT 0,
-        执行管控 INTEGER DEFAULT 0,
-        跨部门协作 INTEGER DEFAULT 0,
-        职业兴趣 INTEGER DEFAULT 0,
-        外向性 INTEGER DEFAULT 0,
-        宜人性 INTEGER DEFAULT 0,
-        开放性 INTEGER DEFAULT 0,
-        责任心 INTEGER DEFAULT 0,
+        管理能力 REAL DEFAULT 0,
+        战略思维 REAL DEFAULT 0,
+        团队领导 REAL DEFAULT 0,
+        执行管控 REAL DEFAULT 0,
+        跨部门协作 REAL DEFAULT 0,
+        性格特质分数 REAL DEFAULT 0,
+        外向性 REAL DEFAULT 0,
+        宜人性 REAL DEFAULT 0,
+        开放性 REAL DEFAULT 0,
+        责任心 REAL DEFAULT 0,
         行为模式类型 TEXT,
-        行为模式分数 INTEGER DEFAULT 0,
-        职业兴趣类型 TEXT,
-        职业兴趣分数 INTEGER DEFAULT 0,
+        行为模式分数 REAL DEFAULT 0,
+        性格特质类型 TEXT,
         通用能力 INTEGER DEFAULT 0,
         言语理解 INTEGER DEFAULT 0,
         数量分析 INTEGER DEFAULT 0,
@@ -146,6 +145,9 @@ def get_questions():
         c = conn.cursor()
         c.execute('SELECT id, 题目, 选项, 题目类型, 正确答案 FROM questions ORDER BY id')
         
+        # 反向题列表
+        reverse_questions = [4, 5, 15, 18, 22, 24, 27, 29, 32, 35, 37, 42, 45, 48, 50, 53, 55, 58, 62, 65, 67, 70, 73, 76, 82, 84, 88, 91, 94, 96, 104, 109, 110, 111, 114, 116, 119, 183, 199, 212, 215, 228]
+        
         all_data = []
         for row in c.fetchall():
             # 处理选项格式 - 优先使用分号，然后是逗号
@@ -155,6 +157,27 @@ def get_questions():
                 options = row[2].split('，')
             else:
                 options = row[2].split(',')
+            
+            # 对反向题的选项进行反转处理
+            if row[0] in reverse_questions and row[3] == '评分':
+                # 反转选项顺序：原来是1=不符合...5=符合，现在变为1=符合...5=不符合
+                reversed_options = []
+                for i, option in enumerate(options):
+                    # 提取选项的描述部分
+                    if '=' in option:
+                        score, desc = option.split('=', 1)
+                        # 反转分值对应的描述
+                        if score.strip() == '1':
+                            reversed_options.append('1=' + options[4].split('=', 1)[1])  # 使用原来5的描述
+                        elif score.strip() == '2':
+                            reversed_options.append('2=' + options[3].split('=', 1)[1])  # 使用原来4的描述
+                        elif score.strip() == '3':
+                            reversed_options.append('3=' + options[2].split('=', 1)[1])  # 保持3不变
+                        elif score.strip() == '4':
+                            reversed_options.append('4=' + options[1].split('=', 1)[1])  # 使用原来2的描述
+                        elif score.strip() == '5':
+                            reversed_options.append('5=' + options[0].split('=', 1)[1])  # 使用原来1的描述
+                options = reversed_options
             
             all_data.append({
                 "id": row[0],
@@ -173,7 +196,7 @@ def get_questions():
 
 @app.route('/api/submit', methods=['POST'])
 def submit_answers():
-    """提交答案并计算得分"""
+    """提交答案并计算得分 - 简化版本"""
     try:
         data = request.json
         answers = data.get('answers', [])
@@ -191,10 +214,12 @@ def submit_answers():
         for row in c.fetchall():
             question_info[row[0]] = {
                 'type': row[1],
-                'correct': row[2]
+                'correct': row[2] if row[2] and row[2].strip() else 'A'
             }
         
-        # 定义维度映射
+        logger.info(f"开始处理 {len(answers)} 个答案")
+        
+        # 完整的维度映射 - 根据question.md要求
         dimension_maps = {
             '管理能力': {
                 '战略思维': list(range(1, 21)),
@@ -203,92 +228,122 @@ def submit_answers():
                 '跨部门协作': list(range(61, 81))
             },
             '性格特质': {
-                '外向性': [87, 88, 89],
-                '宜人性': [90, 92, 99],
-                '开放性': [81, 83, 97],
-                '责任心': [82, 84, 85, 86, 91, 95, 98]
+                '外向性': list(range(81, 86)),
+                '宜人性': list(range(86, 91)),
+                '开放性': list(range(91, 96)),
+                '责任心': list(range(96, 101))
             },
-            '行为模式': {
-                '支配型': [101, 102, 103, 104, 105],
-                '影响型': [106, 107, 108, 109, 110],
-                '稳健型': [111, 112, 113, 114, 115],
-                '谨慎型': [116, 117, 118, 119, 120]
-            },
-            '职业兴趣': {
-                '现实型': list(range(121, 131)),
-                '研究型': list(range(131, 141)),
-                '艺术型': list(range(141, 151)),
-                '社会型': list(range(151, 161)),
-                '企业型': list(range(161, 171)),
-                '常规型': list(range(171, 181))
+            'DISC行为模式': {
+                'D型支配型': list(range(101, 106)),
+                'I型影响型': list(range(106, 111)),
+                'S型稳健型': list(range(111, 116)),
+                'C型谨慎型': list(range(116, 121))
             },
             '通用能力': {
                 '言语理解': list(range(181, 196)),
                 '数量分析': list(range(196, 211)),
                 '逻辑推理': list(range(211, 225)),
-                '空间认知': list(range(225, 240))
+                '空间认知': list(range(225, 241))
             }
         }
         
+        # 反向题列表
+        reverse_questions = [4, 5, 15, 18, 22, 24, 27, 29, 32, 35, 37, 42, 45, 48, 50, 53, 55, 58, 62, 65, 67, 70, 73, 76, 82, 84, 88, 91, 94, 96, 104, 109, 110, 111, 114, 116, 119, 183, 199, 212, 215, 228]
+        
         # 计算各维度得分
         scores = {}
+        
+        def calculate_score(q_id, answer_value, q_info):
+            """根据题目类型计算得分"""
+            if q_info.get('type') == '评分':
+                try:
+                    score = int(answer_value)
+                    score = max(1, min(5, score))
+                    
+                    # 反向题处理：选项显示已反转，但计分也需要反转
+                    # 用户选择1（高分表现）应该得到5分，选择5（低分表现）应该得到1分
+                    if q_id in reverse_questions:
+                        score = 6 - score
+                    return score
+                except:
+                    return 3  # 默认分数
+                    
+            elif q_info.get('type') == '单选':
+                try:
+                    user_ans = str(answer_value).strip().upper()
+                    correct_ans = str(q_info.get('correct', 'A')).strip().upper()
+                    return 1 if user_ans == correct_ans else 0
+                except:
+                    return 0
+            return 0
+        
         for category, dims in dimension_maps.items():
             cat_scores = {}
-            category_total_score = 0
-            category_max_score = 0
+            all_scores = []
             
             for dim, ids in dims.items():
-                dim_score = 0
-                dim_max = 0
+                dim_scores = []
                 
                 for ans in answers:
                     q_id = ans['id']
-                    if q_id not in ids:
-                        continue
-                    
-                    q_info = question_info.get(q_id)
-                    if not q_info:
-                        continue
-                    
-                    if q_info['type'] == '评分':
-                        # 评分题：1-5分
-                        try:
-                            answer_value = int(ans['answer'])
-                            dim_score += max(1, min(5, answer_value))
-                            dim_max += 5
-                        except (ValueError, TypeError):
-                            continue
-                    elif q_info['type'] == '单选':
-                        # 单选题：正确得1分，错误得0分
-                        user_ans = str(ans['answer']).strip().upper()
-                        correct_ans = str(q_info['correct']).strip().upper()
-                        if user_ans == correct_ans:
-                            dim_score += 1
-                        dim_max += 1
+                    if q_id in ids:
+                        q_info = question_info.get(q_id, {})
+                        score = calculate_score(q_id, ans['answer'], q_info)
+                        dim_scores.append(score)
+                        all_scores.append(score)
                 
-                # 计算百分比
-                dim_percent = round((dim_score / dim_max * 100) if dim_max > 0 else 0)
-                cat_scores[dim] = dim_percent
-                category_total_score += dim_score
-                category_max_score += dim_max
+                # 计算维度平均分
+                if dim_scores:
+                    if category == '通用能力':
+                        # 通用能力使用百分制
+                        dim_avg = round((sum(dim_scores) / len(dim_scores)) * 100, 2)
+                    else:
+                        # 其他使用1-5分制
+                        dim_avg = round(sum(dim_scores) / len(dim_scores), 2)
+                else:
+                    dim_avg = 0
+                    
+                cat_scores[dim] = dim_avg
             
-            # 计算类别总得分率
-            category_total_percent = round((category_total_score / category_max_score * 100) if category_max_score > 0 else 0)
-            cat_scores['total'] = category_total_percent
+            # 计算类别总分
+            if all_scores:
+                if category == '通用能力':
+                    total_score = round((sum(all_scores) / len(all_scores)) * 100, 2)
+                else:
+                    total_score = round(sum(all_scores) / len(all_scores), 2)
+            else:
+                total_score = 0
+                
+            cat_scores['total'] = total_score
             scores[category] = cat_scores
+            logger.info(f"{category}: {total_score}分")
         
-        # 确定类型（取最高分）
+        # 确定DISC行为类型（取最高分）
         def get_max_type(data_dict):
-            max_value = max(data_dict.values())
-            max_types = [k for k, v in data_dict.items() if v == max_value and k != 'total']
-            return '/'.join(max_types) if max_types else '未知'
+            """确定最高分的维度类型"""
+            try:
+                if not data_dict:
+                    return '综合型'
+                # 只考虑数值类型的键值对
+                numeric_items = {}
+                for k, v in data_dict.items():
+                    if k != 'total' and isinstance(v, (int, float)):
+                        numeric_items[k] = v
+                
+                if not numeric_items:
+                    return '综合型'
+                
+                max_val = max(numeric_items.values())
+                max_keys = [k for k, v in numeric_items.items() if v == max_val]
+                return '/'.join(max_keys[:2]) if max_keys else '综合型'
+            except:
+                return '综合型'
         
-        # 更新数据库
+        # 更新数据库 - 包含详细子维度
         c.execute('''UPDATE employees SET 
             管理能力 = ?, 战略思维 = ?, 团队领导 = ?, 执行管控 = ?, 跨部门协作 = ?,
-            外向性 = ?, 宜人性 = ?, 开放性 = ?, 责任心 = ?,
+            性格特质分数 = ?, 外向性 = ?, 宜人性 = ?, 开放性 = ?, 责任心 = ?, 性格特质类型 = ?,
             行为模式类型 = ?, 行为模式分数 = ?,
-            职业兴趣类型 = ?, 职业兴趣分数 = ?,
             通用能力 = ?, 言语理解 = ?, 数量分析 = ?, 逻辑推理 = ?, 空间认知 = ?
             WHERE 工号 = ?''', (
             scores['管理能力']['total'],
@@ -296,14 +351,14 @@ def submit_answers():
             scores['管理能力']['团队领导'],
             scores['管理能力']['执行管控'],
             scores['管理能力']['跨部门协作'],
+            scores['性格特质']['total'],
             scores['性格特质']['外向性'],
             scores['性格特质']['宜人性'],
             scores['性格特质']['开放性'],
             scores['性格特质']['责任心'],
-            get_max_type(scores['行为模式']),
-            scores['行为模式']['total'],
-            get_max_type(scores['职业兴趣']),
-            scores['职业兴趣']['total'],
+            get_max_type(scores['性格特质']),
+            get_max_type(scores['DISC行为模式']),
+            scores['DISC行为模式']['total'],
             scores['通用能力']['total'],
             scores['通用能力']['言语理解'],
             scores['通用能力']['数量分析'],
@@ -315,13 +370,23 @@ def submit_answers():
         conn.commit()
         conn.close()
         
+        logger.info("评分计算完成")
+        
         return jsonify({
             "msg": "提交成功",
-            "scores": scores
+            "scores": {
+                "管理能力": scores['管理能力']['total'],
+                "性格特质": scores['性格特质']['total'],
+                "DISC行为模式": scores['DISC行为模式']['total'],
+                "通用能力": scores['通用能力']['total']
+            }
         })
         
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
         logger.error(f"提交答案失败: {str(e)}")
+        logger.error(f"错误堆栈: {error_trace}")
         return jsonify({"msg": "提交失败", "error": str(e)}), 500
 
 @app.route('/api/generate-report', methods=['POST'])
@@ -355,6 +420,9 @@ def generate_report():
             api_key = app.config['DEEPSEEK_API_KEY']
             api_url = "https://api.deepseek.com/v1/chat/completions"
             
+            logger.info(f"开始调用DeepSeek API，数据长度: {len(data)}")
+            logger.info(f"API Key: {api_key[:20]}...")
+            
             headers = {
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {api_key}"
@@ -370,11 +438,31 @@ def generate_report():
                 ]
             }
             
-            response = requests.post(api_url, json=payload, headers=headers)
-            if response.status_code == 200:
-                return response.json()
-            else:
-                return f"Error: {response.status_code} - {response.text}"
+            try:
+                response = requests.post(api_url, json=payload, headers=headers, timeout=180)
+                logger.info(f"DeepSeek API响应状态码: {response.status_code}")
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    logger.info("DeepSeek API调用成功")
+                    return result
+                else:
+                    error_msg = f"API调用失败，状态码: {response.status_code}, 响应: {response.text}"
+                    logger.error(error_msg)
+                    return f"Error: {response.status_code} - {response.text}"
+                    
+            except requests.exceptions.Timeout:
+                error_msg = "DeepSeek API调用超时"
+                logger.error(error_msg)
+                return f"Error: Timeout - {error_msg}"
+            except requests.exceptions.RequestException as e:
+                error_msg = f"DeepSeek API网络请求异常: {str(e)}"
+                logger.error(error_msg)
+                return f"Error: Network - {error_msg}"
+            except Exception as e:
+                error_msg = f"DeepSeek API调用异常: {str(e)}"
+                logger.error(error_msg)
+                return f"Error: Exception - {error_msg}"
         
         # 读取报告模板
         try:
@@ -399,7 +487,6 @@ def generate_report():
 开放性：{开放性}分
 责任心：{责任心}分
 行为模式类型：{行为模式类型}
-职业兴趣类型：{职业兴趣类型}
 通用能力：{通用能力}分
 言语理解：{言语理解}分
 数量分析：{数量分析}分
@@ -412,7 +499,7 @@ def generate_report():
         # 获取当前时间
         current_time = datetime.now().strftime("%Y年%m月%d日")
         
-        # 准备数据
+        # 准备数据 - 更新为新结构
         data_text = f"""
 员工信息：
 姓名：{employee_data['姓名']}
@@ -421,22 +508,27 @@ def generate_report():
 测评时间：{current_time}
 
 能力评估结果：
-管理能力：{employee_data['管理能力']}分
-战略思维：{employee_data['战略思维']}分
-团队领导：{employee_data['团队领导']}分
-执行管控：{employee_data['执行管控']}分
-跨部门协作：{employee_data['跨部门协作']}分
-外向性：{employee_data['外向性']}分
-宜人性：{employee_data['宜人性']}分
-开放性：{employee_data['开放性']}分
-责任心：{employee_data['责任心']}分
-行为模式类型：{employee_data['行为模式类型']}
-职业兴趣类型：{employee_data['职业兴趣类型']}
-通用能力：{employee_data['通用能力']}分
-言语理解：{employee_data['言语理解']}分
-数量分析：{employee_data['数量分析']}分
-逻辑推理：{employee_data['逻辑推理']}分
-空间认知：{employee_data['空间认知']}分
+管理能力总分：{employee_data['管理能力']}分
+- 战略思维：{employee_data['战略思维']}分
+- 团队领导：{employee_data['团队领导']}分  
+- 执行管控：{employee_data['执行管控']}分
+- 跨部门协作：{employee_data['跨部门协作']}分
+
+性格特质总分：{employee_data['性格特质分数']}分
+- 外向性：{employee_data['外向性']}分
+- 宜人性：{employee_data['宜人性']}分
+- 开放性：{employee_data['开放性']}分
+- 责任心：{employee_data['责任心']}分
+
+DISC行为模式：
+- 类型：{employee_data['行为模式类型']}
+- 总分：{employee_data['行为模式分数']}分
+
+通用能力总分：{employee_data['通用能力']}分
+- 言语理解：{employee_data['言语理解']}分
+- 数量分析：{employee_data['数量分析']}分
+- 逻辑推理：{employee_data['逻辑推理']}分
+- 空间认知：{employee_data['空间认知']}分
 """
         
         # 替换模板中的时间占位符
@@ -500,7 +592,7 @@ def admin_list_employees():
     try:
         conn = sqlite3.connect('new_questions.db')
         c = conn.cursor()
-        c.execute('SELECT id, 工号, 姓名, 职业兴趣分数, 通用能力, 管理能力, 宜人性, 外向性, 开放性, 责任心, 行为模式分数 FROM employees ORDER BY 创建时间 DESC')
+        c.execute('SELECT id, 工号, 姓名, 管理能力, 战略思维, 团队领导, 执行管控, 跨部门协作, 性格特质分数, 外向性, 宜人性, 开放性, 责任心, 性格特质类型, 行为模式类型, 行为模式分数, 通用能力, 言语理解, 数量分析, 逻辑推理, 空间认知 FROM employees ORDER BY 创建时间 DESC')
         cols = [d[0] for d in c.description]
         rows = [dict(zip(cols, r)) for r in c.fetchall()]
         conn.close()
@@ -532,12 +624,38 @@ def admin_generate_report():
         def call_deepseek_api(data):
             api_key = app.config['DEEPSEEK_API_KEY']
             api_url = "https://api.deepseek.com/v1/chat/completions"
+            
+            logger.info(f"管理员开始调用DeepSeek API，数据长度: {len(data)}")
+            logger.info(f"API Key: {api_key[:20]}...")
+            
             headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
             payload = {"model": "deepseek-chat", "messages": [{"role": "user", "content": data}]}
-            response = requests.post(api_url, json=payload, headers=headers)
-            if response.status_code == 200:
-                return response.json()
-            return f"Error: {response.status_code} - {response.text}"
+            
+            try:
+                response = requests.post(api_url, json=payload, headers=headers, timeout=180)
+                logger.info(f"DeepSeek API响应状态码: {response.status_code}")
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    logger.info("DeepSeek API调用成功")
+                    return result
+                else:
+                    error_msg = f"API调用失败，状态码: {response.status_code}, 响应: {response.text}"
+                    logger.error(error_msg)
+                    return f"Error: {response.status_code} - {response.text}"
+                    
+            except requests.exceptions.Timeout:
+                error_msg = "DeepSeek API调用超时"
+                logger.error(error_msg)
+                return f"Error: Timeout - {error_msg}"
+            except requests.exceptions.RequestException as e:
+                error_msg = f"DeepSeek API网络请求异常: {str(e)}"
+                logger.error(error_msg)
+                return f"Error: Network - {error_msg}"
+            except Exception as e:
+                error_msg = f"DeepSeek API调用异常: {str(e)}"
+                logger.error(error_msg)
+                return f"Error: Exception - {error_msg}"
 
         try:
             with open('templates/report.template.md', 'r', encoding='utf-8') as f:
@@ -554,22 +672,27 @@ def admin_generate_report():
 测评时间：{current_time}
 
 能力评估结果：
-管理能力：{employee_data['管理能力']}分
-战略思维：{employee_data['战略思维']}分
-团队领导：{employee_data['团队领导']}分
-执行管控：{employee_data['执行管控']}分
-跨部门协作：{employee_data['跨部门协作']}分
-外向性：{employee_data['外向性']}分
-宜人性：{employee_data['宜人性']}分
-开放性：{employee_data['开放性']}分
-责任心：{employee_data['责任心']}分
-行为模式类型：{employee_data['行为模式类型']}
-职业兴趣类型：{employee_data['职业兴趣类型']}
-通用能力：{employee_data['通用能力']}分
-言语理解：{employee_data['言语理解']}分
-数量分析：{employee_data['数量分析']}分
-逻辑推理：{employee_data['逻辑推理']}分
-空间认知：{employee_data['空间认知']}分
+管理能力总分：{employee_data['管理能力']}分
+- 战略思维：{employee_data['战略思维']}分
+- 团队领导：{employee_data['团队领导']}分  
+- 执行管控：{employee_data['执行管控']}分
+- 跨部门协作：{employee_data['跨部门协作']}分
+
+性格特质总分：{employee_data['性格特质分数']}分
+- 外向性：{employee_data['外向性']}分
+- 宜人性：{employee_data['宜人性']}分
+- 开放性：{employee_data['开放性']}分
+- 责任心：{employee_data['责任心']}分
+
+DISC行为模式：
+- 类型：{employee_data['行为模式类型']}
+- 总分：{employee_data['行为模式分数']}分
+
+通用能力总分：{employee_data['通用能力']}分
+- 言语理解：{employee_data['言语理解']}分
+- 数量分析：{employee_data['数量分析']}分
+- 逻辑推理：{employee_data['逻辑推理']}分
+- 空间认知：{employee_data['空间认知']}分
 """
         template_with_time = template_content.replace("[测评时间]", current_time).replace("[生成时间]", current_time)
         input_data = f"现在我需要你来按以下模板，生成报告：{data_text}\n\n模板：{template_with_time}"
@@ -606,8 +729,8 @@ def admin_export():
     try:
         conn = sqlite3.connect('new_questions.db')
         c = conn.cursor()
-        c.execute('''SELECT 工号, 姓名, 职业兴趣分数, 通用能力, 管理能力, 责任心, 行为模式分数 FROM employees''')
-        headers = ['工号','姓名','职业兴趣得分','通用能力得分','管理能力得分','职业性格得分','行为模式得分']
+        c.execute('''SELECT 工号, 姓名, 管理能力, 性格特质分数, 行为模式分数, 通用能力 FROM employees''')
+        headers = ['工号','姓名','管理能力得分','性格特质得分','行为模式得分','通用能力得分']
         rows = c.fetchall()
         conn.close()
 

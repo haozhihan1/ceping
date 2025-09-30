@@ -176,7 +176,7 @@ DEEPSEEK_API_KEY=your-actual-deepseek-api-key
 
 # 管理员账号配置
 ADMIN_USERNAME=admin
-ADMIN_PASSWORD=your-secure-admin-password
+ADMIN_PASSWORD=admin123
 ```
 
 ## 安全配置

@@ -45,7 +45,7 @@
         <table>
             <thead>
                 <tr>
-                    <th>工号</th><th>姓名</th><th>管理能力</th><th>职业兴趣</th><th>通用能力</th><th>职业性格</th><th>行为模式</th><th>操作</th>
+                    <th>工号</th><th>姓名</th><th>管理能力</th><th>通用能力</th><th>职业性格</th><th>行为模式</th><th>操作</th>
                 </tr>
             </thead>
             <tbody id="empTable"></tbody>
@@ -102,7 +102,7 @@ async function loadEmployees(){
     tbody.innerHTML = '';
     list.forEach(row=>{
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${row['工号']||''}</td><td>${row['姓名']||''}</td><td>${row['管理能力']||0}</td><td>${row['职业兴趣分数']||0}</td><td>${row['通用能力']||0}</td><td>${row['宜人性']||0}</td><td>${row['行为模式分数']||0}</td><td><button class='btn' onclick="genReport('${row['工号']}')">分析</button></td>`;
+        tr.innerHTML = `<td>${row['工号']||''}</td><td>${row['姓名']||''}</td><td>${row['管理能力']||0}</td><td>${row['通用能力']||0}</td><td>${row['性格特质类型']||''}</td><td>${row['行为模式类型']||''}</td><td><button class='btn' onclick="genReport('${row['工号']}')">分析</button></td>`;
         tbody.appendChild(tr);
     });
 }

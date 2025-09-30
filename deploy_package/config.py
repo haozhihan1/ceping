@@ -41,8 +41,8 @@ class Config:
     DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions'
 
     # 管理员配置
-    ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'haozhihan')
-    ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'Haozhihan010922！')
+    ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')
+    ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')
 
 class DevelopmentConfig(Config):
     """开发环境配置"""

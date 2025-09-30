@@ -12,7 +12,7 @@ DEEPSEEK_API_KEY=your-deepseek-api-key-here
 
 # 管理员账号配置
 ADMIN_USERNAME=admin
-ADMIN_PASSWORD=your-secure-admin-password
+ADMIN_PASSWORD=admin123
 
 # 数据库配置
 DATABASE_PATH=/home/www/flask_project/new_questions.db

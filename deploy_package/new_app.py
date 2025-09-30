@@ -158,6 +158,9 @@ def get_questions():
         c = conn.cursor()
         c.execute('SELECT id, 题目, 选项, 题目类型, 正确答案 FROM questions ORDER BY id')
         
+        # 反向题列表
+        reverse_questions = [4, 5, 15, 18, 22, 24, 27, 29, 32, 35, 37, 42, 45, 48, 50, 53, 55, 58, 62, 65, 67, 70, 73, 76, 82, 84, 88, 91, 94, 96, 104, 109, 110, 111, 114, 116, 119, 183, 199, 212, 215, 228]
+        
         all_data = []
         for row in c.fetchall():
             # 处理选项格式 - 优先使用分号，然后是逗号
@@ -167,6 +170,27 @@ def get_questions():
                 options = row[2].split('，')
             else:
                 options = row[2].split(',')
+            
+            # 对反向题的选项进行反转处理
+            if row[0] in reverse_questions and row[3] == '评分':
+                # 反转选项顺序：原来是1=不符合...5=符合，现在变为1=符合...5=不符合
+                reversed_options = []
+                for i, option in enumerate(options):
+                    # 提取选项的描述部分
+                    if '=' in option:
+                        score, desc = option.split('=', 1)
+                        # 反转分值对应的描述
+                        if score.strip() == '1':
+                            reversed_options.append('1=' + options[4].split('=', 1)[1])  # 使用原来5的描述
+                        elif score.strip() == '2':
+                            reversed_options.append('2=' + options[3].split('=', 1)[1])  # 使用原来4的描述
+                        elif score.strip() == '3':
+                            reversed_options.append('3=' + options[2].split('=', 1)[1])  # 保持3不变
+                        elif score.strip() == '4':
+                            reversed_options.append('4=' + options[1].split('=', 1)[1])  # 使用原来2的描述
+                        elif score.strip() == '5':
+                            reversed_options.append('5=' + options[0].split('=', 1)[1])  # 使用原来1的描述
+                options = reversed_options
             
             all_data.append({
                 "id": row[0],
@@ -242,6 +266,9 @@ def submit_answers():
             }
         }
         
+        # 反向题列表
+        reverse_questions = [4, 5, 15, 18, 22, 24, 27, 29, 32, 35, 37, 42, 45, 48, 50, 53, 55, 58, 62, 65, 67, 70, 73, 76, 82, 84, 88, 91, 94, 96, 104, 109, 110, 111, 114, 116, 119, 183, 199, 212, 215, 228]
+        
         # 计算各维度得分
         scores = {}
         for category, dims in dimension_maps.items():
@@ -266,7 +293,14 @@ def submit_answers():
                         # 评分题：1-5分
                         try:
                             answer_value = int(ans['answer'])
-                            dim_score += max(1, min(5, answer_value))
+                            score = max(1, min(5, answer_value))
+                            
+                            # 反向题处理：选项显示已反转，但计分也需要反转
+                            # 用户选择1（高分表现）应该得到5分，选择5（低分表现）应该得到1分
+                            if q_id in reverse_questions:
+                                score = 6 - score
+                            
+                            dim_score += score
                             dim_max += 5
                         except (ValueError, TypeError):
                             continue
