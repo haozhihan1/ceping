@@ -39,7 +39,7 @@ SERVER_IP="124.223.40.219"
 SERVER_USER="root"
 PROJECT_NAME="employee-assessment-system"
 REMOTE_DIR="/home/www/flask_project"
-GIT_REPO_URL="https://github.com/haozhihan1/ceping.git"  # 请替换为您的实际Git仓库地址
+GIT_REPO_URL="https://github.com/haozhihan1/ceping.git"  # 使用GitHub仓库地址
 
 # 检查必要工具
 check_requirements() {
