@@ -51,7 +51,7 @@ def init_db():
         正确答案 TEXT
     )''')
     
-    # 创建人员表 - 更新为新结构，移除职业兴趣
+    # 创建人员表 - 删除职业兴趣相关字段
     c.execute('''CREATE TABLE IF NOT EXISTS employees (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         姓名 TEXT NOT NULL,
@@ -67,9 +67,9 @@ def init_db():
         宜人性 REAL DEFAULT 0,
         开放性 REAL DEFAULT 0,
         责任心 REAL DEFAULT 0,
+        性格特质类型 TEXT,
         行为模式类型 TEXT,
         行为模式分数 REAL DEFAULT 0,
-        性格特质类型 TEXT,
         通用能力 INTEGER DEFAULT 0,
         言语理解 INTEGER DEFAULT 0,
         数量分析 INTEGER DEFAULT 0,
@@ -145,39 +145,36 @@ def get_questions():
         c = conn.cursor()
         c.execute('SELECT id, 题目, 选项, 题目类型, 正确答案 FROM questions ORDER BY id')
         
-        # 反向题列表
-        reverse_questions = [4, 5, 15, 18, 22, 24, 27, 29, 32, 35, 37, 42, 45, 48, 50, 53, 55, 58, 62, 65, 67, 70, 73, 76, 82, 84, 88, 91, 94, 96, 104, 109, 110, 111, 114, 116, 119, 183, 199, 212, 215, 228]
-        
         all_data = []
         for row in c.fetchall():
-            # 处理选项格式 - 优先使用分号，然后是逗号
-            if ';' in row[2]:
-                options = row[2].split(';')
-            elif '，' in row[2]:
-                options = row[2].split('，')
-            else:
-                options = row[2].split(',')
+            question_type = row[3]  # 题目类型
+            options_text = row[2]   # 选项文本
             
-            # 对反向题的选项进行反转处理
-            if row[0] in reverse_questions and row[3] == '评分':
-                # 反转选项顺序：原来是1=不符合...5=符合，现在变为1=符合...5=不符合
-                reversed_options = []
-                for i, option in enumerate(options):
-                    # 提取选项的描述部分
-                    if '=' in option:
-                        score, desc = option.split('=', 1)
-                        # 反转分值对应的描述
-                        if score.strip() == '1':
-                            reversed_options.append('1=' + options[4].split('=', 1)[1])  # 使用原来5的描述
-                        elif score.strip() == '2':
-                            reversed_options.append('2=' + options[3].split('=', 1)[1])  # 使用原来4的描述
-                        elif score.strip() == '3':
-                            reversed_options.append('3=' + options[2].split('=', 1)[1])  # 保持3不变
-                        elif score.strip() == '4':
-                            reversed_options.append('4=' + options[1].split('=', 1)[1])  # 使用原来2的描述
-                        elif score.strip() == '5':
-                            reversed_options.append('5=' + options[0].split('=', 1)[1])  # 使用原来1的描述
-                options = reversed_options
+            # 根据题目类型处理选项格式
+            if question_type in ['情境题', '双向选择题']:
+                # 情境题和双向选择题使用分号分隔，格式：A=内容;B=内容;C=内容;D=内容
+                if ';' in options_text:
+                    options = options_text.split(';')
+                else:
+                    options = [options_text]  # 单个选项
+            elif question_type == '反向题':
+                # 反向题使用逗号分隔，格式：1=非常不符合，2=不太符合，3=一般，4=较符合，5=非常符合
+                if '，' in options_text:
+                    options = options_text.split('，')
+                elif ',' in options_text:
+                    options = options_text.split(',')
+                else:
+                    options = [options_text]
+            else:
+                # 其他题目类型（评分题、单选题）
+                if ';' in options_text:
+                    options = options_text.split(';')
+                elif '，' in options_text:
+                    options = options_text.split('，')
+                elif ',' in options_text:
+                    options = options_text.split(',')
+                else:
+                    options = [options_text]
             
             all_data.append({
                 "id": row[0],
@@ -219,62 +216,110 @@ def submit_answers():
         
         logger.info(f"开始处理 {len(answers)} 个答案")
         
-        # 完整的维度映射 - 根据question.md要求
+        # 完整的维度映射 - 删除职业兴趣部分
         dimension_maps = {
             '管理能力': {
-                '战略思维': list(range(1, 21)),
-                '团队领导': list(range(21, 41)),
-                '执行管控': list(range(41, 61)),
-                '跨部门协作': list(range(61, 81))
+                '战略与决策': [1, 2, 3, 4, 5],
+                '团队领导': [6, 7, 8, 9, 10],
+                '沟通影响': [11, 12, 13, 14, 15],
+                '执行管控': [16, 17, 18, 19, 20],
+                '学习创新': [21, 22, 23, 24, 25]
             },
             '性格特质': {
-                '外向性': list(range(81, 86)),
-                '宜人性': list(range(86, 91)),
-                '开放性': list(range(91, 96)),
-                '责任心': list(range(96, 101))
+                '外向性': [26, 32, 34],
+                '宜人性': [35, 37, 44],
+                '开放性': [28, 42],
+                '责任心': [27, 29, 30, 31, 36, 40, 43, 45]
             },
             'DISC行为模式': {
-                'D型支配型': list(range(101, 106)),
-                'I型影响型': list(range(106, 111)),
-                'S型稳健型': list(range(111, 116)),
-                'C型谨慎型': list(range(116, 121))
+                'D型支配型': [46, 47, 48, 49, 50],
+                'I型影响型': [51, 52, 53, 54, 55],
+                'S型稳健型': [56, 57, 58, 59, 60],
+                'C型谨慎型': [61, 62, 63, 64, 65]
             },
             '通用能力': {
-                '言语理解': list(range(181, 196)),
-                '数量分析': list(range(196, 211)),
-                '逻辑推理': list(range(211, 225)),
-                '空间认知': list(range(225, 241))
+                '言语理解': list(range(66, 81)),
+                '数量分析': list(range(81, 96)),
+                '逻辑推理': list(range(96, 111)),
+                '空间认知': list(range(111, 126))
             }
         }
         
-        # 反向题列表
-        reverse_questions = [4, 5, 15, 18, 22, 24, 27, 29, 32, 35, 37, 42, 45, 48, 50, 53, 55, 58, 62, 65, 67, 70, 73, 76, 82, 84, 88, 91, 94, 96, 104, 109, 110, 111, 114, 116, 119, 183, 199, 212, 215, 228]
+        # 反向题列表 - 更新为新的管理能力反向题
+        reverse_questions = [3, 5, 7, 10, 12, 15, 17, 20, 22, 25, 27, 30, 33, 36, 39, 41]
+        
+        # 情境题分值映射 - 根据新设计文档
+        situation_scores = {
+            1: {'A': 2, 'B': 5, 'C': 3, 'D': 1},  # 战略主动性
+            4: {'A': 3, 'B': 5, 'C': 2, 'D': 1},  # 问题洞察力
+            6: {'A': 3, 'B': 5, 'C': 2, 'D': 1},  # 激励与辅导
+            9: {'A': 2, 'B': 5, 'C': 3, 'D': 1},  # 冲突处理
+            11: {'A': 3, 'B': 5, 'C': 4, 'D': 1}, # 沟通策略
+            14: {'A': 5, 'B': 3, 'C': 2, 'D': 1}, # 跨部门沟通
+            16: {'A': 3, 'B': 5, 'C': 2, 'D': 1}, # 执行判断
+            19: {'A': 5, 'B': 4, 'C': 2, 'D': 3}, # 规则意识
+            21: {'A': 4, 'B': 5, 'C': 3, 'D': 1}, # 学习意愿
+            24: {'A': 2, 'B': 5, 'C': 1, 'D': 4}  # 复原力
+        }
+        
+        # 双向选择题分值映射 - 根据新设计文档
+        dual_choice_scores = {
+            2: {'A': 3, 'B': 5},   # 战略敏感度
+            8: {'A': 5, 'B': 4},   # 领导风格
+            13: {'A': 4, 'B': 5},  # 沟通方式
+            18: {'A': 4, 'B': 5},  # 执行灵活度
+            23: {'A': 4, 'B': 5}   # 创新倾向
+        }
         
         # 计算各维度得分
         scores = {}
         
         def calculate_score(q_id, answer_value, q_info):
             """根据题目类型计算得分"""
-            if q_info.get('type') == '评分':
+            q_type = q_info.get('type', '')
+            
+            # 情境题：使用预设分值映射
+            if q_type == '情境题':
+                if q_id in situation_scores:
+                    answer_key = str(answer_value).strip().upper()
+                    return situation_scores[q_id].get(answer_key, 1)
+                return 3  # 默认分数
+            
+            # 双向选择题：使用预设分值映射
+            elif q_type == '双向选择题':
+                if q_id in dual_choice_scores:
+                    answer_key = str(answer_value).strip().upper()
+                    return dual_choice_scores[q_id].get(answer_key, 3)
+                return 3  # 默认分数
+            
+            # 反向题：1-5分制，需要反转
+            elif q_type == '反向题':
                 try:
                     score = int(answer_value)
                     score = max(1, min(5, score))
-                    
-                    # 反向题处理：选项显示已反转，但计分也需要反转
-                    # 用户选择1（高分表现）应该得到5分，选择5（低分表现）应该得到1分
-                    if q_id in reverse_questions:
-                        score = 6 - score
+                    # 反向计分：1→5, 2→4, 3→3, 4→2, 5→1
+                    return 6 - score
+                except:
+                    return 3  # 默认分数
+            
+            # 普通评分题：1-5分制
+            elif q_type == '评分':
+                try:
+                    score = int(answer_value)
+                    score = max(1, min(5, score))
                     return score
                 except:
                     return 3  # 默认分数
                     
-            elif q_info.get('type') == '单选':
+            # 单选题：正确得1分，错误得0分
+            elif q_type == '单选':
                 try:
                     user_ans = str(answer_value).strip().upper()
                     correct_ans = str(q_info.get('correct', 'A')).strip().upper()
                     return 1 if user_ans == correct_ans else 0
                 except:
                     return 0
+            
             return 0
         
         for category, dims in dimension_maps.items():
@@ -295,24 +340,28 @@ def submit_answers():
                 # 计算维度平均分
                 if dim_scores:
                     if category == '通用能力':
-                        # 通用能力使用百分制
-                        dim_avg = round((sum(dim_scores) / len(dim_scores)) * 100, 2)
+                        # 通用能力改为5分制：正确率转换为1-5分
+                        correct_rate = sum(dim_scores) / len(dim_scores)
+                        # 将0-1的正确率映射到1-5分制
+                        dim_avg = round(1 + correct_rate * 4, 2)
                     else:
                         # 其他使用1-5分制
                         dim_avg = round(sum(dim_scores) / len(dim_scores), 2)
                 else:
-                    dim_avg = 0
+                    dim_avg = 1 if category == '通用能力' else 0
                     
                 cat_scores[dim] = dim_avg
             
             # 计算类别总分
             if all_scores:
                 if category == '通用能力':
-                    total_score = round((sum(all_scores) / len(all_scores)) * 100, 2)
+                    # 通用能力改为5分制：正确率转换为1-5分
+                    correct_rate = sum(all_scores) / len(all_scores)
+                    total_score = round(1 + correct_rate * 4, 2)
                 else:
                     total_score = round(sum(all_scores) / len(all_scores), 2)
             else:
-                total_score = 0
+                total_score = 1 if category == '通用能力' else 0
                 
             cat_scores['total'] = total_score
             scores[category] = cat_scores
@@ -339,7 +388,7 @@ def submit_answers():
             except:
                 return '综合型'
         
-        # 更新数据库 - 包含详细子维度
+        # 更新数据库 - 包含新的管理能力维度
         c.execute('''UPDATE employees SET 
             管理能力 = ?, 战略思维 = ?, 团队领导 = ?, 执行管控 = ?, 跨部门协作 = ?,
             性格特质分数 = ?, 外向性 = ?, 宜人性 = ?, 开放性 = ?, 责任心 = ?, 性格特质类型 = ?,
@@ -347,10 +396,10 @@ def submit_answers():
             通用能力 = ?, 言语理解 = ?, 数量分析 = ?, 逻辑推理 = ?, 空间认知 = ?
             WHERE 工号 = ?''', (
             scores['管理能力']['total'],
-            scores['管理能力']['战略思维'],
+            scores['管理能力']['战略与决策'],
             scores['管理能力']['团队领导'],
             scores['管理能力']['执行管控'],
-            scores['管理能力']['跨部门协作'],
+            scores['管理能力'].get('沟通影响', 0),  # 新维度，可能不存在
             scores['性格特质']['total'],
             scores['性格特质']['外向性'],
             scores['性格特质']['宜人性'],
@@ -359,11 +408,11 @@ def submit_answers():
             get_max_type(scores['性格特质']),
             get_max_type(scores['DISC行为模式']),
             scores['DISC行为模式']['total'],
-            scores['通用能力']['total'],
-            scores['通用能力']['言语理解'],
-            scores['通用能力']['数量分析'],
-            scores['通用能力']['逻辑推理'],
-            scores['通用能力']['空间认知'],
+            scores.get('通用能力', {}).get('total', 0),
+            scores.get('通用能力', {}).get('言语理解', 0),
+            scores.get('通用能力', {}).get('数量分析', 0),
+            scores.get('通用能力', {}).get('逻辑推理', 0),
+            scores.get('通用能力', {}).get('空间认知', 0),
             员工工号
         ))
         

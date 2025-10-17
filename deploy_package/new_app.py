@@ -312,15 +312,29 @@ def submit_answers():
                             dim_score += 1
                         dim_max += 1
                 
-                # 计算百分比
-                dim_percent = round((dim_score / dim_max * 100) if dim_max > 0 else 0)
-                cat_scores[dim] = dim_percent
+                # 计算维度得分
+                if category == '通用能力':
+                    # 通用能力改为5分制：正确率转换为1-5分
+                    correct_rate = (dim_score / dim_max) if dim_max > 0 else 0
+                    dim_score_final = round(1 + correct_rate * 4, 2)
+                else:
+                    # 其他维度使用百分制
+                    dim_score_final = round((dim_score / dim_max * 100) if dim_max > 0 else 0)
+                
+                cat_scores[dim] = dim_score_final
                 category_total_score += dim_score
                 category_max_score += dim_max
             
-            # 计算类别总得分率
-            category_total_percent = round((category_total_score / category_max_score * 100) if category_max_score > 0 else 0)
-            cat_scores['total'] = category_total_percent
+            # 计算类别总得分
+            if category == '通用能力':
+                # 通用能力改为5分制：正确率转换为1-5分
+                correct_rate = (category_total_score / category_max_score) if category_max_score > 0 else 0
+                category_total_final = round(1 + correct_rate * 4, 2)
+            else:
+                # 其他类别使用百分制
+                category_total_final = round((category_total_score / category_max_score * 100) if category_max_score > 0 else 0)
+            
+            cat_scores['total'] = category_total_final
             scores[category] = cat_scores
         
         # 确定类型（取最高分）
